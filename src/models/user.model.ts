@@ -6,6 +6,7 @@ interface IUser extends Document {
     password: string;
     profileImage?: string;
     likedSongs: mongoose.Schema.Types.ObjectId[];
+    role: "artist" | "user";
     createdAt: Date;
     updatedAt: Date;
 }
@@ -31,7 +32,12 @@ const userSchema = new mongoose.Schema<IUser>({
     likedSongs: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: "Song"
-    }]
+    }],
+    role: {
+        type: String,
+        enum: ["artist", "user"],
+        default: "user"
+    }
 },{timestamps: true});
 
 const User = mongoose.model<IUser>("User", userSchema);
