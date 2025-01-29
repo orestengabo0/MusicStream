@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import User from '../models/userModel'
 import dotenv from "dotenv"
+import cloudinary from '../cloudinary/cloudinary';
 
 dotenv.config()
 
@@ -19,11 +20,18 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         }
         const salt = await bcrypt.genSalt(10)
         const hashedPassword = await bcrypt.hash(password, salt);
+
+        let profileImage = ""
+        if(req.file){
+            const uploadedImage = await cloudinary.uploader.upload(req.file.path, {folder: "profile_pictures"})
+            profileImage = uploadedImage.secure_url
+        }
         const newUser = await User.create({
             username,
             email,
             password: hashedPassword,
-            role
+            role,
+            profileImage
         })
         res.status(201).json({ message: "User registered successfully", user: newUser });
     }catch(error){
@@ -47,7 +55,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
             return
         }
         const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, {
-            expiresIn: "1h",
+            expiresIn: "3h",
         });
         res.status(200).json({ message: "Login successful", token });
     }catch(error){
