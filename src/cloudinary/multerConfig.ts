@@ -7,8 +7,11 @@ const storage = new CloudinaryStorage({
   params: async (req, file) => ({
     folder: "profile_pictures",
     format: "png",
-    allowed_formats: ["jpg", "png", "jpeg"],
-    transformation: [{ width: 500, height: 500, crop: "limit" }],
+    allowed_formats: ["jpg", "png", "jpeg", "webp"],
+    transformation: [
+      { width: 500, height: 500, crop: "limit", quality: "auto" },
+      {fetch_format: "webp"}
+    ],
   }),
 });
 
