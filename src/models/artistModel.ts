@@ -2,8 +2,10 @@ import mongoose, { Document } from "mongoose";
 
 interface IArtist extends Document {
     name: string;
+    email: string;
+    password: string;
     bio?: string;
-    profileImage?: string;
+    artistProfileImage?: string;
     genres: string[];
     followers: mongoose.Schema.Types.ObjectId[];
     songs: mongoose.Schema.Types.ObjectId[];
@@ -17,17 +19,25 @@ const artistSchema = new mongoose.Schema<IArtist>({
         required: true,
         unique: true,
     },
+    email: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    password: {
+        type: String,
+        required: true
+    },
     bio: {
         type: String,
         default: "",
     },
-    profileImage: {
+    artistProfileImage: {
         type: String,
         default: "",
     },
     genres: {
         type: [String],
-        required: true,
         validate: {
             validator: (v: string[]) => v.length > 0,
             message: "An artist must have at least one genre.",
