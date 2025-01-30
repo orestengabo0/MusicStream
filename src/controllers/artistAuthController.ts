@@ -3,6 +3,8 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { Request, Response } from "express";
 import cloudinary from "../cloudinary/cloudinary";
+import { artistValidator } from "../validation/artistValidator";
+import { userValidator } from "../validation/userDataValidator";
 
 interface AuthenticatedRequest extends Request {
   user?: any;
@@ -14,6 +16,11 @@ export const registerArtist = async (
 ): Promise<void> => {
   try {
     const { name, email, password, bio, genres } = req.body;
+    const { error } = artistValidator.createArtist.validate(req.body);
+    if (error) {
+      res.status(400).json({ error: error.details[0].message });
+      return;
+    }
 
     const existingArtist = await Artist.findOne({ email });
     if (existingArtist) {
@@ -56,6 +63,11 @@ export const loginArtist = async (
 ): Promise<void> => {
   try {
     const { email, password } = req.body;
+    const { error } = userValidator.loginUser.validate(req.body);
+    if (error) {
+      res.status(400).json({ error: error.details[0].message });
+      return;
+    }
 
     const artist = await Artist.findOne({ email });
     if (!artist) {
@@ -87,7 +99,12 @@ export const updateArtistProfile = async (
   res: Response
 ): Promise<void> => {
   const artistId = req.user?.id;
-  const { artistname, email, password, bio, genres } = req.body;
+  const { name, email, password, bio, genres } = req.body;
+  const { error } = artistValidator.updateArtist.validate(req.body);
+  if (error) {
+    res.status(400).json({ error: error.details[0].message });
+    return;
+  }
 
   try {
     const artist = await Artist.findById(artistId);
@@ -96,7 +113,7 @@ export const updateArtistProfile = async (
       return;
     }
 
-    if (artistname) artist.name = artistname;
+    if (name) artist.name = name;
     if (email) artist.email = email;
 
     if (password) {
