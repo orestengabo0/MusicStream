@@ -1,45 +1,18 @@
 import { Request, Response } from "express";
-import ffmpeg from "fluent-ffmpeg";
-import ffmpegStatic from "ffmpeg-static";
 import cloudinary from "../cloudinary/cloudinary";
-import fs from "fs";
-import Song from "../models/songModel"; // Import the Song model
-import { songValidator } from "../validation/songValidator"; // Import validation
-import mongoose from "mongoose";
+import Song from "../models/songModel";
+import { songValidator } from "../validation/songValidator";
+import { extractAudioMetadata, getAudioMetadata, uploadSong } from "../audio/audioManager"
 
-ffmpeg.setFfmpegPath(ffmpegStatic as string);
+interface AuthenticatedRequest extends Request {
+  user?: any;
+}
 
-export const uploadSong = async (file: Express.Multer.File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    if (!file) {
-      return reject("No file uploaded.");
-    }
 
-    const inputPath = file.path;
-    const outputPath = `compressed-${Date.now()}.mp3`;
-
-    ffmpeg(inputPath)
-      .audioBitrate("128k")
-      .toFormat("mp3")
-      .on("end", async () => {
-        try {
-          const result = await cloudinary.uploader.upload(outputPath, {
-            resource_type: "video",
-            folder: "songs",
-          });
-
-          fs.unlinkSync(outputPath); // Remove temp file after upload
-          resolve(result.secure_url);
-        } catch (error) {
-          reject("Error uploading to Cloudinary");
-        }
-      })
-      .on("error", (err) => reject(err.message))
-      .save(outputPath);
-  });
-};
-
-export const createSong = async (req: Request, res: Response): Promise<void> => {
+export const createSong = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
   try {
     const { error } = songValidator.createSong.validate(req.body);
     if (error) {
@@ -47,32 +20,83 @@ export const createSong = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    const { title, artist, genre, album, releaseDate, duration, featuredArtists } = req.body;
+    const { title, genre, album, releaseDate, featuredArtists, coverImage } =
+      req.body;
+    const currentArtist = req.user?.id;
+    if (!currentArtist) {
+      res.status(400).json({
+        message: "No artist logged in. Please login to upload your songs.",
+      });
+    }
 
     if (!req.file) {
       res.status(400).json({ message: "Audio file is required." });
       return;
     }
 
-    const audioUrl = await uploadSong(req.file);
+    const audioMetadata = await extractAudioMetadata(req.file.path);
+    const publicId = await uploadSong(req.file.path);
+
+    if (!publicId) {
+      res.status(500).json({ message: "Failed to upload audio." });
+      return;
+    }
+    const cloudinaryMetadata = await getAudioMetadata(publicId);
+    const durationMetadata =
+      audioMetadata.duration || 0;
+    const duration = Math.floor(durationMetadata)
 
     const newSong = new Song({
       title,
-      artist: new mongoose.Types.ObjectId(artist),
+      artist: currentArtist,
       genre,
       album,
       releaseDate: new Date(releaseDate),
       duration,
-      audioUrl,
-      coverImage: req.body.coverImage || "",
-      featuredArtists: featuredArtists ? featuredArtists.split(",") : [],
+      audioUrl: cloudinaryMetadata?.secure_url,
+      coverImage: coverImage || "",
+      featuredArtists:
+        typeof featuredArtists === "string" ? featuredArtists.split(",") : [],
     });
 
     await newSong.save();
-    res.status(201).json({ message: "Song created successfully!", song: newSong });
-
+    res
+      .status(201)
+      .json({ message: "Song created successfully!", song: newSong });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 };
+
+export const deleteSong = async(req: AuthenticatedRequest, res: Response) => {
+  try{
+    const { songId } = req.params
+    const currentArtist = req.user.id;
+    if(!currentArtist){
+      res.status(400).json({ message: "No user found. Please login to delete song."})
+      return
+    }
+    const song = await Song.findById(songId)
+    if(!song){
+      res.status(404).json({ message: "Song not found."})
+    }
+    if(song?.audioUrl){
+      const publicId = song.audioUrl.split("/").pop()?.split(".")[0];
+      if(publicId){
+        await cloudinary.uploader.destroy(publicId, { resource_type: "video"})
+        console.log("✅ File deleted from Cloudinary:", publicId);
+      }
+    }
+
+    await Song.findByIdAndDelete(songId)
+    res.status(200).json({ message: "✅ Song deleted successfully."})
+
+  }catch(error){
+    if (error instanceof Error) {
+      throw new Error(error.message);
+    } else {
+      throw new Error(String(error));
+    }
+  }
+}
