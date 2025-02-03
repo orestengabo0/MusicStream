@@ -2,12 +2,37 @@ import { Request, Response } from "express";
 import cloudinary from "../cloudinary/cloudinary";
 import Song from "../models/songModel";
 import { songValidator } from "../validation/songValidator";
-import { extractAudioMetadata, getAudioMetadata, uploadSong } from "../audio/audioManager"
+import {
+  extractAudioMetadata,
+  getAudioMetadata,
+  uploadSong,
+} from "../audio/audioManager";
 
 interface AuthenticatedRequest extends Request {
   user?: any;
 }
 
+export const getSongs = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const user = req.user.id;
+    if (!user) {
+      res
+        .status(400)
+        .json({ message: "User not found. Please login to view songs." });
+    }
+    const songs = await Song.find({ artist: user });
+    if (songs.length === 0) {
+      res.status(404).json({ message: "No song found." });
+    }
+    res.status(200).json({ message: "Success", songs });
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(error.message);
+    } else {
+      throw new Error(String(error));
+    }
+  }
+};
 
 export const createSong = async (
   req: AuthenticatedRequest,
@@ -42,9 +67,8 @@ export const createSong = async (
       return;
     }
     const cloudinaryMetadata = await getAudioMetadata(publicId);
-    const durationMetadata =
-      audioMetadata.duration || 0;
-    const duration = Math.floor(durationMetadata)
+    const durationMetadata = audioMetadata.duration || 0;
+    const duration = Math.floor(durationMetadata);
 
     const newSong = new Song({
       title,
@@ -69,34 +93,35 @@ export const createSong = async (
   }
 };
 
-export const deleteSong = async(req: AuthenticatedRequest, res: Response) => {
-  try{
-    const { songId } = req.params
+export const deleteSong = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { songId } = req.params;
     const currentArtist = req.user.id;
-    if(!currentArtist){
-      res.status(400).json({ message: "No user found. Please login to delete song."})
-      return
+    if (!currentArtist) {
+      res
+        .status(400)
+        .json({ message: "No user found. Please login to delete song." });
+      return;
     }
-    const song = await Song.findById(songId)
-    if(!song){
-      res.status(404).json({ message: "Song not found."})
+    const song = await Song.findById(songId);
+    if (!song) {
+      res.status(404).json({ message: "Song not found." });
     }
-    if(song?.audioUrl){
+    if (song?.audioUrl) {
       const publicId = song.audioUrl.split("/").pop()?.split(".")[0];
-      if(publicId){
-        await cloudinary.uploader.destroy(publicId, { resource_type: "video"})
+      if (publicId) {
+        await cloudinary.uploader.destroy(publicId, { resource_type: "video" });
         console.log("✅ File deleted from Cloudinary:", publicId);
       }
     }
 
-    await Song.findByIdAndDelete(songId)
-    res.status(200).json({ message: "✅ Song deleted successfully."})
-
-  }catch(error){
+    await Song.findByIdAndDelete(songId);
+    res.status(200).json({ message: "✅ Song deleted successfully." });
+  } catch (error) {
     if (error instanceof Error) {
       throw new Error(error.message);
     } else {
       throw new Error(String(error));
     }
   }
-}
+};
