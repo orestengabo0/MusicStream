@@ -4,7 +4,7 @@ interface ISong extends Document {
     title: string;
     artist: mongoose.Schema.Types.ObjectId;
     genre: string;
-    album: string;
+    album: mongoose.Schema.Types.ObjectId;
     releaseDate: Date;
     duration: number;
     audioUrl: string;
@@ -29,7 +29,8 @@ const songSchema = new mongoose.Schema<ISong>({
         required: true
     },
     album: {
-        type: String,
+        type: mongoose.Types.ObjectId,
+        ref: "Album",
         required: true
     },
     releaseDate: {

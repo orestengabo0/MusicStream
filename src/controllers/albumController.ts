@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import Album from "../models/albumModel";
 import Song from "../models/songModel";
-import Artist from "../models/artistModel";
+import { albumValidator } from "../validation/albumValidator";
 
 interface AuthenticatedRequest extends Request {
   user?: any;
@@ -11,6 +11,10 @@ export const addSongToAlbum = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
+  const { error } = albumValidator.addSongToAlbum.validate(req.body);
+  if(error){
+    res.status(404).send(error.details[0].message)
+  }
   try {
     const { songId, albumId } = req.body;
     const currentArtist = req.user.id;
@@ -40,10 +44,54 @@ export const addSongToAlbum = async (
   }
 };
 
+export const getMyAlbums = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const currentArtist = req.user.id;
+    const albums = await Album.find({ artist: currentArtist });
+
+    if (albums.length === 0) {
+      res.status(400).json({ message: "No album found." });
+      return;
+    }
+    res.status(200).json({ message: "Success", albums });
+  } catch (error) {
+    console.error("❌ ERROR:", error);
+    res.status(500).json({ message: "Server error" });
+    return;
+  }
+};
+
+export const getMyAlbum = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { albumId } = req.params;
+    const currentArtist = req.user.id;
+    const album = await Album.findOne({ _id: albumId, artist: currentArtist });
+    if (!album) {
+      res
+        .status(400)
+        .json({ message: "Album you are trying to get is not available." });
+    }
+    res.status(200).json({ message: "Success", album });
+  } catch (error) {
+    console.error("❌ ERROR:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 export const createAlbum = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
+  const { error } = albumValidator.createAlbum.validate(req.body);
+  if(error){
+    res.status(404).send(error.details[0].message)
+  }
   try {
     const { name, releaseDate, coverImage } = req.body;
     const currentArtist = req.user.id;
@@ -54,10 +102,21 @@ export const createAlbum = async (
     if (existingAlbum) {
       res.status(400).json({ message: "Album already exists." });
     }
+    const parsedReleaseDate = new Date(releaseDate);
+    if (isNaN(parsedReleaseDate.getTime())) {
+      res.status(400).json({ message: "Invalid release date provided." });
+      return;
+    }
+    if (parsedReleaseDate > new Date()) {
+      res
+        .status(400)
+        .json({ message: "Release date cannot be in the future." });
+      return;
+    }
     const newAlbum = new Album({
       name,
       artist: currentArtist,
-      releaseDate: new Date(releaseDate),
+      releaseDate: parsedReleaseDate,
       coverImage: coverImage || "",
       songs: [],
     });
@@ -101,22 +160,26 @@ export const deleteAlbum = async (
 ): Promise<void> => {
   try {
     const { albumId } = req.params;
-    const currentArtist = req.user.id;
+    const currentArtist = req.user?.id;
+
     if (!currentArtist) {
       res
         .status(400)
-        .json({ message: "No user found. Please login to delete song." });
+        .json({ message: "No user found. Please login to delete the album." });
       return;
     }
-    const album = await Album.find({ _id: albumId, artist: currentArtist });
-    if (album.length === 0) {
-      res.status(400).json({ message: "Album doesn't exist" });
-      return
+
+    const album = await Album.findOne({ _id: albumId, artist: currentArtist });
+    if (!album) {
+      res.status(400).json({ message: "Album doesn't exist." });
+      return;
     }
-    await Album.findByIdAndDelete(albumId)
-    res.status(200).json({ message: "Album deleted."})
+
+    await Album.findByIdAndDelete(albumId);
+    res.status(200).json({ message: "Album deleted successfully." });
   } catch (error) {
     console.error("❌ ERROR:", error);
     res.status(500).json({ message: "Server error" });
+    return;
   }
 };
