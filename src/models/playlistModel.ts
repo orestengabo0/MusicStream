@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose, { model } from "mongoose";
 
 interface IPlaylist extends Document {
     name: string;
@@ -32,3 +32,7 @@ const playlistSchema = new mongoose.Schema<IPlaylist>({
         default: false
     }
 },{timestamps: true});
+
+const Playlist = model("Playlist", playlistSchema)
+
+export default Playlist
