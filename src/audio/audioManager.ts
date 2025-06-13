@@ -20,7 +20,7 @@ export const uploadSong = async (filePath: string): Promise<string | undefined> 
       console.error("❌ Error uploading audio:", error);
     }
   };
-  
+
 export const getAudioMetadata = async (publicId: string): Promise<any> => {
     try {
       const result = await cloudinary.api.resource(publicId, {
@@ -31,7 +31,7 @@ export const getAudioMetadata = async (publicId: string): Promise<any> => {
       console.error("❌ Error fetching metadata:", error);
     }
   };
-  
+
 export const extractAudioMetadata = async (filePath: string): Promise<any> => {
     return new Promise((resolve, reject) => {
       ffmpeg.ffprobe(filePath, (err, metadata) => {
@@ -53,4 +53,3 @@ export const extractAudioMetadata = async (filePath: string): Promise<any> => {
       });
     });
   };
-  
